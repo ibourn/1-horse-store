@@ -1,0 +1,111 @@
+// send calldata -> function dispatcher -> function
+
+/* Interfaces */
+#define function updateHorseNumber(uint256) nonpayable returns()
+#define function readNumberOfHorses() view returns(uint256)
+
+#define constant NUMBER_OF_HORSES_SLOT = FREE_STORAGE_POINTER()  // give slot 0
+// #define constant NUMBER_OF_HORSES_SLOT2 = FREE_STORAGE_POINTER() // give slot 1
+
+
+// entry point : main macro ('same' as a fucntion)
+// empty MAIN et compilation -> 60008060093d393df3 => Contract creation bytecode : take the binary after and stick it on-chain
+// #define macro MAIN() = takes(0) returns(0) {
+//     // // PUSH0 (opcode f5) or 0x00 -> PUSH0 0x00 ...(huff understand it's a push0)
+//     // no need in huff of PUSH0,1,.. it will guess it
+//     // 0x00                // stack : [0]
+//     // // 0x02                // stack TOP - BOTTOM : [2 , 0]
+//     // // load the calldata
+//     // calldataload        // stack : [calldataload] , 0 removed
+//     // // how to cut the calldata -> 4 bytes selector ?
+
+//     // // SHR opcode : shift right
+//     // // 0x0102 (bytes) / 1 bytes == 8 bits
+//     // // 0b100000010 : 1 for x01 and 00000010 for x02 (..00010000010)
+//     // // 0b100000010 >> 2 -> 0b01000000 (0x40)
+//     // // SHR takes the target and the shift amount
+
+//     // // calldataload : 32 bytes if we want more : increase the offset
+//     // // otherwise calldata is truncated (the first 32 bytes)
+//     // // shift 28 bytes (224 bits) to the right to get the first 4 bytes
+//     // 0xe0                // stack : [0xe0, calldata (32  bytes)]
+//     // SHR                 // stack : [selector (4 bytes)]
+//     0x00 calldataload 0xE0 shr  // stack : [selector (4 bytes)]
+//     // -> jump to the function corresponding to the selector
+//     // if f_select == updateHorseNumber : jump to updateHorseNumber ...
+//     // selectors :
+//     // 0xcdfead2e : updateHorseNumber(uint256)
+//     // 0xe026c017 : readNumberOfHorses()
+//     // duplicate the selector as it will be used in the next instruction
+//     dup1                  // stack : [selector, selector (4 bytes)]
+//     0xcdfead2e            // stack : [0xcdfead2e, selector, selector (4 bytes)]
+//     eq                    // stack : [0, selector] or [1, selector] (if equal or not)
+//     updateJump            // stack : [updateHorseNumberProgramCounter, true/false, selector]
+//     jumpi                 // stack : [selector] (if true, jump to updateHorseNumberProgramCounter)
+//     // jumpdest => indicate valid jump destination
+
+//     // no duplicate cause it's the last instruction
+//     0xe026c017            // stack : [0xe026c017, selector]
+//     eq                    // stack : [0] or [1] (if equal or not)
+//     readJump              // stack : [readNumberOfHorsesProgramCounter, true/false] 
+//     jumpi                 // stack : []
+
+//     0x00 0x00 revert      // stack : [0, 0]
+
+//     updateJump:
+//         SET_NUMBER_OF_HORSES()
+//     // alternative to jumpi
+//     // 0x000f
+//     // jumpi
+//     // jumpdest
+//     readJump:
+//         GET_NUMBER_OF_HORSES()
+//     }
+
+#define macro MAIN() = takes(0) returns(0) {
+    0x00 calldataload 0xE0 shr                   // stack : [selector (4 bytes)]
+
+    // updateNumberOfHorses(uint256) : 0xcdfead2e
+    dup1 __FUNC_SIG(updateHorseNumber) eq updateJump jumpi          // stack : [selector (4 bytes)]
+    // readNumberOfHorses, 0xe026c017
+    __FUNC_SIG(readNumberOfHorses) eq readJump jumpi                 // stack : []
+
+    0x00 0x00 revert                             // stack : [0, 0]
+    
+    updateJump:
+        SET_NUMBER_OF_HORSES()
+    readJump:
+        GET_NUMBER_OF_HORSES()
+    }
+
+
+#define macro SET_NUMBER_OF_HORSES() = takes(0) returns(0) {
+    // - get the value to store from the calldata
+    0x04                                         // stack : [4] offset for the calldataload
+    calldataload                                 // stack : [calldata - selector]
+    // - give a storage slot
+    // we can harcode the storage slot or use FREE_STORAGE_POINTER
+    [NUMBER_OF_HORSES_SLOT]                      // stack : [slot, value]
+    // - sstore opcode
+    sstore                                       // stack : []
+    // IMPORTANT otherwise code continues to execute the lines after
+    stop
+    }
+
+#define macro GET_NUMBER_OF_HORSES() = takes(0) returns(0) {
+    // - get the storage slot to read from
+    [NUMBER_OF_HORSES_SLOT]                      // stack : [slot (key)]
+
+    // - load the value of the storage slot into memory
+    sload                                        // stack : [value]
+    // memory works with offset (x32bytes, not slot)
+    0x00                                         // stack : [offset, value]
+    mstore                                       // stack : [] // memory : [value]
+
+    // - return the value
+    0x20                                         // stack : [0x20] size to read : 32 bytes
+    0x00                                         // stack : [0x20, 0x00] offset
+    return                                       // stack : []
+    }
+
+
