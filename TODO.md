@@ -12,7 +12,7 @@ first bytes : 0xcdfead2e = function selector (4 bytes)
 The EVM reads the instructions and presents this selector
 The function selector of the contract compares it to its selectors and allows to jump to the corresponding code
 
-=> solidity compiler do the function dispatcher fir us, not yul & huff
+=> solidity compiler do the function dispatcher for us, not yul & huff
 it allows optimization but it skips security offered by solidity compiler
 
 => it's the entry point of the smart contract to know what to do next
